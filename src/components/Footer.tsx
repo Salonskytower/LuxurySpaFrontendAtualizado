@@ -53,7 +53,7 @@ export default function Footer({ language }: FooterProps) {
   const [secureInfoButton, setSecureInfoButton] = useState("");
   useEffect(() => {
     fetch(
-      `https://api.leprive.fun/api/footer-content?populate=*&locale=${language}`
+      `https://leprive.com.pl/api/footer-content?populate=*&locale=${language}`
     )
       .then((res) => res.json())
       .then((json) => {
