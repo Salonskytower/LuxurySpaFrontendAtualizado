@@ -37,7 +37,7 @@ export default function HowItWorksSection({
 
   useEffect(() => {
     fetch(
-      `https://api.leprive.fun/api/why-choose-content?populate[cards]=true&populate[bottomButton]=true&locale=${language}`
+      `https://leprive.com.pl/api/why-choose-content?populate[cards]=true&populate[bottomButton]=true&locale=${language}`
     )
       .then((res) => res.json())
       .then((json) => {
@@ -104,7 +104,7 @@ export default function HowItWorksSection({
 
   useEffect(() => {
     fetch(
-      `https://api.leprive.fun/api/why-choose-section?populate[bottomCards]=true&locale=${language}`
+      `https://leprive.com.pl/api/why-choose-section?populate[bottomCards]=true&locale=${language}`
     )
       .then((res) => res.json())
       .then((json) => {
