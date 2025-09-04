@@ -20,7 +20,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AuthModal from "@/components/AuthModal";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.leprive.fun";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl";
 
 interface CompanionInfo {
   id: number;
