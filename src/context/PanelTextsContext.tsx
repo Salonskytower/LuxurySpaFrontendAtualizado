@@ -49,7 +49,7 @@ export function PanelTextsProvider({ children }: { children: React.ReactNode }) 
 
     useEffect(() => {
         setLoading(true);
-        const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "https://api.leprive.fun";
+        const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "https://leprive.com.pl";
         fetch(`${STRAPI_URL}/api/admin-panel-text?locale=${language}`)
             .then((res) => res.json())
             .then((data) => {
