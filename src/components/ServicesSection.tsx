@@ -89,7 +89,7 @@ export default function MassageServicesSection({
 
   useEffect(() => {
     fetch(
-      `https://api.leprive.fun/api/massage-services-content?populate[massageCards][populate][options]=true&populate[extraCards][populate]=icon&populate[jacuzziServices][populate]=packages&populate[specialOptions]=true&populate[professionalBadge]=true&populate[partyCard][populate]=features&locale=${language}`
+      `https://leprive.com.pl/api/massage-services-content?populate[massageCards][populate][options]=true&populate[extraCards][populate]=icon&populate[jacuzziServices][populate]=packages&populate[specialOptions]=true&populate[professionalBadge]=true&populate[partyCard][populate]=features&locale=${language}`
     )
       .then((res) => res.json())
       .then((json) => {
