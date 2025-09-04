@@ -16,7 +16,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setMsg(null);
     try {
-      await axios.post("http://localhost:1337/api/auth/reset-password", {
+      await axios.post("https://leprive.com.pl/api/auth/reset-password", {
         code,
         password,
         passwordConfirmation,
