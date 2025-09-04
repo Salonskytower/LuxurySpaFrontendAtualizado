@@ -201,7 +201,7 @@ export default function AdminDashboard() {
   const updateBookingStatus = async (bookingId: number, newStatus: string) => {
     try {
       const res = await fetch(
-        `${API_URL}/api/bookings/update-status`,
+        `${API_URL}/api/cal-webhook/update-status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -864,3 +864,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
