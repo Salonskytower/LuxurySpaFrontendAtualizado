@@ -30,7 +30,8 @@ import {
 
 const BOOKINGS_PER_PAGE = 5;
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl/api";
+// 👉 use sempre a env; em dev coloque NEXT_PUBLIC_API_URL=http://localhost:1337
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl";
 
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,7 +58,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     async function fetchBookings() {
-      const url = "https://leprive.com.pl/api/bookings?populate=companion";
+      const url = `${API_URL}/api/bookings?populate=companion`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.data) {
@@ -85,33 +86,35 @@ export default function AdminDashboard() {
           const duration =
             startTime && endTime
               ? (() => {
-                  const start = new Date(startTime);
-                  const end = new Date(endTime);
-                  const diff = Math.round(
-                    (end.getTime() - start.getTime()) / 60000
-                  );
-                  return diff > 0 ? `${diff}min` : "-";
-                })()
+                const start = new Date(startTime);
+                const end = new Date(endTime);
+                const diff = Math.round(
+                  (end.getTime() - start.getTime()) / 60000
+                );
+                return diff > 0 ? `${diff}min` : "-";
+              })()
               : "-";
 
           const amount = companionData?.price
             ? `R$ ${Number(companionData.price).toLocaleString("pt-BR")}`
             : "-";
 
+          // === NORMALIZAÇÃO DE STATUS (alinhada ao enum do back) ===
           let status = (item.currentStatus ?? "").toLowerCase();
 
-          if (["accepted", "accept", "confirmed"].includes(status)) {
-            status = "pending"; // SEMPRE transforma bookings novos para pending
+          if (["accepted", "accept", "approved"].includes(status)) {
+            status = "confirmed";
           } else if (["cancelled", "canceled"].includes(status)) {
             status = "cancelled";
-          } else if (["pending"].includes(status)) {
+          } else if (!["pending", "confirmed", "cancelled"].includes(status)) {
             status = "pending";
-          } else {
-            status = "pending"; // qualquer outro, default pending
           }
+          // ========================================================
 
           return {
-            id: item.id,
+            // guardamos ambos: o id numérico (v4/v5 legacy) e o documentId (v5)
+            id: item.id, // numérico (fallback)
+            documentId: item.documentId, // preferido no v5
             clientName,
             companionName,
             date: date ?? "-",
@@ -167,7 +170,8 @@ export default function AdminDashboard() {
     return matchesSearch && matchesDate;
   });
 
-  const pageCount = Math.ceil(filteredBookings.length / BOOKINGS_PER_PAGE) || 1;
+  const pageCount =
+    Math.ceil(filteredBookings.length / BOOKINGS_PER_PAGE) || 1;
   const bookingsToShow = filteredBookings.slice(
     (currentPage - 1) * BOOKINGS_PER_PAGE,
     currentPage * BOOKINGS_PER_PAGE
@@ -198,23 +202,32 @@ export default function AdminDashboard() {
     }
   };
 
-  const updateBookingStatus = async (bookingId: number, newStatus: string) => {
+  // 👉 agora aceitamos tanto documentId (preferido) quanto id numérico (fallback)
+  const updateBookingStatus = async (
+    bookingIdentifier: string | number,
+    newStatus: "pending" | "confirmed" | "cancelled"
+  ) => {
+    // se vier número, manda número; se vier string (documentId), manda string
+    const payload =
+      typeof bookingIdentifier === "number"
+        ? { id: bookingIdentifier, status: newStatus }
+        : { id: bookingIdentifier, status: newStatus };
+
     try {
-      const res = await fetch(
-        `${API_URL}/api/cal-webhook/update-status`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: bookingId, status: newStatus }),
-        }
-      );
+      const res = await fetch(`${API_URL}/api/cal-webhook/update-status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       if (!res.ok) throw new Error("Erro ao atualizar status!");
 
-      // Opcional: atualizar local para feedback instantâneo
-      setBookings((prevBookings) =>
-        prevBookings.map((booking) =>
-          booking.id === bookingId ? { ...booking, status: newStatus } : booking
+      // Atualização otimista local
+      setBookings((prev) =>
+        prev.map((b) =>
+          (b.documentId ?? b.id) === bookingIdentifier
+            ? { ...b, status: newStatus }
+            : b
         )
       );
 
@@ -225,7 +238,7 @@ export default function AdminDashboard() {
       };
 
       setNotification({
-        message: statusMessages[newStatus as keyof typeof statusMessages],
+        message: statusMessages[newStatus],
         type: newStatus === "cancelled" ? "error" : "success",
       });
       setTimeout(() => setNotification(null), 3000);
@@ -292,11 +305,10 @@ export default function AdminDashboard() {
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -50 }}
-          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm ${
-            notification.type === "success"
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm ${notification.type === "success"
               ? "bg-green-500/90 text-white"
               : "bg-red-500/90 text-white"
-          }`}
+            }`}
         >
           {notification.message}
         </motion.div>
@@ -412,11 +424,10 @@ export default function AdminDashboard() {
                     </div>
                     {stat.change && (
                       <span
-                        className={`text-xs sm:text-sm font-medium ${
-                          stat.trend === "up"
+                        className={`text-xs sm:text-sm font-medium ${stat.trend === "up"
                             ? "text-green-400"
                             : "text-red-400"
-                        }`}
+                          }`}
                       >
                         {stat.change}
                       </span>
@@ -461,11 +472,10 @@ export default function AdminDashboard() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowDateFilter(!showDateFilter)}
-                  className={`p-2 rounded-lg border transition-all ${
-                    showDateFilter
+                  className={`p-2 rounded-lg border transition-all ${showDateFilter
                       ? "bg-rose-500/20 border-rose-500/30 text-rose-300"
                       : "bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/20 text-white"
-                  }`}
+                    }`}
                 >
                   <CalendarDays className="w-4 h-4" />
                 </motion.button>
@@ -495,11 +505,10 @@ export default function AdminDashboard() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setShowDateFilter(!showDateFilter)}
-                    className={`flex-1 p-2 rounded-lg border transition-all ${
-                      showDateFilter
+                    className={`flex-1 p-2 rounded-lg border transition-all ${showDateFilter
                         ? "bg-rose-500/20 border-rose-500/30 text-rose-300"
                         : "bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/20 text-white"
-                    }`}
+                      }`}
                   >
                     <CalendarDays className="w-4 h-4 mx-auto" />
                   </motion.button>
@@ -671,7 +680,7 @@ export default function AdminDashboard() {
                     ) : (
                       bookingsToShow.map((booking) => (
                         <tr
-                          key={booking.id}
+                          key={booking.documentId ?? booking.id}
                           className="border-b border-white/5 hover:bg-white/5 transition-all"
                         >
                           <td className="p-3 sm:p-4">
@@ -731,7 +740,10 @@ export default function AdminDashboard() {
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() =>
-                                  updateBookingStatus(booking.id, "confirmed")
+                                  updateBookingStatus(
+                                    booking.documentId ?? booking.id,
+                                    "confirmed"
+                                  )
                                 }
                                 className="p-1.5 sm:p-2 bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-all"
                                 title="Accept"
@@ -742,7 +754,10 @@ export default function AdminDashboard() {
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() =>
-                                  updateBookingStatus(booking.id, "cancelled")
+                                  updateBookingStatus(
+                                    booking.documentId ?? booking.id,
+                                    "cancelled"
+                                  )
                                 }
                                 className="p-1.5 sm:p-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all"
                                 title="Cancel"
@@ -753,7 +768,10 @@ export default function AdminDashboard() {
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() =>
-                                  updateBookingStatus(booking.id, "pending")
+                                  updateBookingStatus(
+                                    booking.documentId ?? booking.id,
+                                    "pending"
+                                  )
                                 }
                                 className="p-1.5 sm:p-2 bg-orange-500/20 text-orange-300 rounded-lg hover:bg-orange-500/30 transition-all"
                                 title="Set Pending"
