@@ -84,7 +84,7 @@ export default function AuthModal({
     const fetchLoginContent = async () => {
       try {
         const res = await axios.get<{ data: LoginContent }>(
-          `https://api.leprive.fun/api/login-content?locale=${language}`
+          `https://leprive.com.pl/api/login-content?locale=${language}`
         );
         const data = res.data?.data;
         if (data) setLoginContent(data);
@@ -99,7 +99,7 @@ export default function AuthModal({
     const fetchResetContent = async () => {
       try {
         const res = await axios.get<{ data: ResetPasswordContent }>(
-          `https://api.leprive.fun/api/reset-password-content?locale=${language}`
+          `https://leprive.com.pl/api/reset-password-content?locale=${language}`
         );
         const data = res.data?.data;
         if (data) setResetContent(data);
@@ -137,7 +137,7 @@ export default function AuthModal({
       }
 
       const res = await axios.post<LoginResponse>(
-        "https://api.leprive.fun/api/auth/local",
+        "https://leprive.com.pl/api/auth/local",
         payload
       );
 
@@ -182,7 +182,7 @@ export default function AuthModal({
         email: formData.email,
       };
       await axios.post(
-        "https://api.leprive.fun/api/auth/forgot-password",
+        "https://leprive.com.pl/api/auth/forgot-password",
         payload
       );
       alert("If this email exists, a reset link has been sent.");
