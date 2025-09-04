@@ -5,7 +5,7 @@ import { Heart, Star, MapPin, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.leprive.fun";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl";
 
 interface Companion {
   id: number;
@@ -74,7 +74,7 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
 
     try {
       const res = await fetch(
-        `https://api.leprive.fun/api/companions/document/${documentId}/like`,
+        `https://leprive.com.pl/api/companions/document/${documentId}/like`,
         { method: "POST" }
       );
 
@@ -131,7 +131,7 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
   async function fetchData() {
     try {
       // 🔎 Somente perfis com imagem (sem apagar nada no CMS)
-      const url = new URL(`https://api.leprive.fun/api/companions`);
+      const url = new URL(`https://leprive.com.pl/api/companions`);
       url.searchParams.set("locale", language);
       url.searchParams.set("sort", "likes:desc");
       url.searchParams.set("pagination[page]", "1");
@@ -152,7 +152,7 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
           if (c.event_type_id && String(c.event_type_id).match(/^\d+$/)) {
             try {
               const slotsRes = await fetch(
-                `https://api.leprive.fun/api/companions/event-type/${c.event_type_id}/availability`
+                `https://leprive.com.pl/api/companions/event-type/${c.event_type_id}/availability`
               );
               if (slotsRes.ok) {
                 const slotsJson = await slotsRes.json();
@@ -226,7 +226,7 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
   async function fetchGalleryContent() {
     try {
       const res = await fetch(
-        `https://api.leprive.fun/api/companions-gallery-content?locale=${language}`
+        `https://leprive.com.pl/api/companions-gallery-content?locale=${language}`
       );
       const json = await res.json();
       const data = json.data;
