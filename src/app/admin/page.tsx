@@ -30,7 +30,7 @@ import {
 
 const BOOKINGS_PER_PAGE = 5;
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.leprive.fun";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl/api";
 
 export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,7 +57,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     async function fetchBookings() {
-      const url = "https://api.leprive.fun/api/bookings?populate=companion";
+      const url = "https://leprive.com.pl/api/bookings?populate=companion";
       const res = await fetch(url);
       const data = await res.json();
       if (data.data) {
@@ -864,4 +864,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
