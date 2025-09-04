@@ -84,7 +84,7 @@ export default function ImageCarouselSection({
 
   useEffect(() => {
     fetch(
-      `https://api.leprive.fun/api/gallery-content?populate[galleryButton]=true&populate[heroGalleryInfo]=true&populate[slides]=true&populate[facilities]=true&populate[facilitiesIntro]=true&populate[privateEnvironmentButton]=true&locale=${language}`
+      `https://leprive.com.pl/api/gallery-content?populate[galleryButton]=true&populate[heroGalleryInfo]=true&populate[slides]=true&populate[facilities]=true&populate[facilitiesIntro]=true&populate[privateEnvironmentButton]=true&locale=${language}`
     )
       .then((res) => res.json())
       .then((json) => {
