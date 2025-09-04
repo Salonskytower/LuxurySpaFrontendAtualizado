@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.leprive.fun";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl";
 
 export async function fetchFromStrapi(endpoint: string) {
   try {
