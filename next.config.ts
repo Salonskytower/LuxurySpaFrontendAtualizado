@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig = {
   images: {
-    domains: ["api.leprive.fun"],
+    domains: ["leprive.com.pl"],
   },
 };
 
