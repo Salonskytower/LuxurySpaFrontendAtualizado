@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { contentApi } from "@/lib/api";
 
 const images = [
   {
@@ -83,12 +84,10 @@ export default function ImageCarouselSection({
   });
 
   useEffect(() => {
-    fetch(
-      `https://leprive.com.pl/api/gallery-content?populate[galleryButton]=true&populate[heroGalleryInfo]=true&populate[slides]=true&populate[facilities]=true&populate[facilitiesIntro]=true&populate[privateEnvironmentButton]=true&locale=${language}`
-    )
-      .then((res) => res.json())
-      .then((json) => {
-        const data = json?.data;
+    async function loadGalleryContent() {
+      try {
+        const data = await contentApi.getGalleryContent(language);
+        
         if (data?.galleryButton) {
           setGalleryButton({
             icon: data.galleryButton.icon,
@@ -128,10 +127,12 @@ export default function ImageCarouselSection({
             text: data.privateEnvironmentButton.text,
           });
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to fetch gallery content:", err);
-      });
+      }
+    }
+    
+    loadGalleryContent();
   }, [language]);
 
   useEffect(() => {
