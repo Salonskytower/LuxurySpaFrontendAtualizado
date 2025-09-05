@@ -49,6 +49,7 @@ interface GalleryContent {
   subtitle: string;
   viewAllButtonText: string;
   bookNowButtonText?: string;
+  hideAllButtonText?: string; // <- novo: texto para "Ocultar todas as massagistas"
 }
 
 export default function CompanionsGallery({ language }: CompanionsGalleryProps) {
@@ -61,6 +62,8 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
     title: "",
     subtitle: "",
     viewAllButtonText: "",
+    bookNowButtonText: undefined,
+    hideAllButtonText: "", // <- novo
   });
 
   const likeCompanion = async (documentId: string) => {
@@ -231,12 +234,20 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
       const json = await res.json();
       const data = json.data;
       if (data) {
+        // Fallback coerente caso o CMS não traga explicitamente "Ocultar"
+        const derivedHide =
+          (data.viewAllButtonText || "")
+            .replace(/^Pokaż/i, "Ukryj")
+            .replace(/^Show/i, "Hide");
+
         setGalleryContent({
           title: data.title?.trim() || galleryContent.title,
           subtitle: data.subtitle?.trim() || galleryContent.subtitle,
           viewAllButtonText:
             data.viewAllButtonText?.trim() || galleryContent.viewAllButtonText,
           bookNowButtonText: data.bookNowButtonText?.trim() || "Book Now",
+          hideAllButtonText:
+            (data.OcultarMassagistas?.trim?.() || derivedHide || galleryContent.hideAllButtonText || "").trim(),
         });
       }
     } catch (error) {
@@ -424,7 +435,8 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
             className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white rounded-full font-semibold border border-white/20 hover:bg-white/20 transition-all duration-300"
           >
             {isExpanded
-              ? galleryContent.viewAllButtonText.replace("Zobacz", "Ukryj")
+              ? (galleryContent.hideAllButtonText ||
+                galleryContent.viewAllButtonText)
               : galleryContent.viewAllButtonText}
           </motion.button>
         </motion.div>
