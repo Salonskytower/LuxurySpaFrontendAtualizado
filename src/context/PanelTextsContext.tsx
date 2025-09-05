@@ -19,7 +19,7 @@ export interface AdminPanelTexts {
     search_bookings_placeholder: string;
     confirmed_label: string;
     pending_label: string;
-    cancelled_label?: string; // se existir no Strapi
+    cancelled_label?: string;
     sidebar_logout: string;
     sidebar_admin_user: string;
     sidebar_dashboard: string;
@@ -29,7 +29,13 @@ export interface AdminPanelTexts {
     status_cancelled_notification?: string;
     status_pending_notification?: string;
     loading_label?: string;
-    // ...adicione mais campos conforme seu Strapi crescer
+    reportsLabel?: string;
+    comapnionsLabels?: string;
+    settingLabel?: string;
+    resultstotalLabel?: string;
+    anteriorLabel?: string;
+    proximaLabel?: string;
+    pageOfLabel?: string;
 }
 
 type Language = "pl" | "en";
