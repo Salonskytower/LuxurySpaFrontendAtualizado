@@ -2,7 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig = {
   images: {
-    domains: ["leprive.com.pl"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "leprive.com.pl",
+        port: "",
+        pathname: "/uploads/**",
+      },
+    ],
   },
 };
 
