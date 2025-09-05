@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Play, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
-import { fetchFromStrapi } from "../lib/api";
+import { contentApi } from "../lib/api";
 import Image from "next/image";
 interface HeroContent {
   title: string;
@@ -37,9 +37,7 @@ export default function HeroSection({ language }: HeroSectionProps) {
 
     const fetchContent = async () => {
       try {
-        const res = await fetchFromStrapi(
-          `/api/hero-section-content?locale=${language}`
-        );
+        const res = await contentApi.getHeroContent(language);
         if (res) setContent(res);
       } catch (error) {
         console.error("Erro ao buscar hero-section-content:", error);
