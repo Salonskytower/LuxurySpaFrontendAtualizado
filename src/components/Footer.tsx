@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { contentApi } from "@/lib/api";
 
 import {
   Clock,
@@ -52,13 +53,10 @@ export default function Footer({ language }: FooterProps) {
   const [cookiePolicyLink, setCookiePolicyLink] = useState("");
   const [secureInfoButton, setSecureInfoButton] = useState("");
   useEffect(() => {
-    fetch(
-      `https://leprive.com.pl/api/footer-content?populate=*&locale=${language}`
-    )
-      .then((res) => res.json())
-      .then((json) => {
-        const data = json?.data;
-
+    async function loadFooterContent() {
+      try {
+        const data = await contentApi.getFooterContent(language);
+        
         if (!data) return;
 
         // Dados dinâmicos
@@ -74,10 +72,12 @@ export default function Footer({ language }: FooterProps) {
         setTermsOfServiceLink(data.termsOfServiceLink || "");
         setCookiePolicyLink(data.cookiePolicyLink || "");
         setSecureInfoButton(data.SecureInfoButton || "");
-      })
-      .catch((err) =>
-        console.error("Erro ao carregar o conteúdo do rodapé:", err)
-      );
+      } catch (err) {
+        console.error("Erro ao carregar o conteúdo do rodapé:", err);
+      }
+    }
+    
+    loadFooterContent();
   }, [language]);
 
   return (
