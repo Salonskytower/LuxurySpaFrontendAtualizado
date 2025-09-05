@@ -751,7 +751,7 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ) : (
-                      bookingsToShow.map((booking, index) => (
+                      bookingsToShow.map((booking) => (
                         <tr
                           key={booking.documentId ?? booking.id}
                           className="border-b border-white/5 hover:bg-white/[0.02] transition-all duration-200 group"
@@ -962,3 +962,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
