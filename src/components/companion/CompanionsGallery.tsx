@@ -1,9 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { Heart, Star, MapPin, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { companionsApi, contentApi } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl";
 
@@ -17,7 +19,7 @@ interface Companion {
   reviews: number;
   price: string;
   tags: string[];
-  availability: string;
+  availability: "Available" | "Busy" | "Unavailable" | "Checking...";
   description: string;
   image?: string;
   likes: number;
@@ -76,16 +78,9 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
     setCompanions([...updated].sort((a, b) => b.likes - a.likes));
 
     try {
-      const res = await fetch(
-        `https://leprive.com.pl/api/companions/document/${documentId}/like`,
-        { method: "POST" }
-      );
-
-      if (!res.ok) {
-        updated[idx] = { ...updated[idx], likes: updated[idx].likes - 1 };
-        setCompanions([...updated].sort((a, b) => b.likes - a.likes));
-      }
+      await companionsApi.likeCompanion(documentId);
     } catch (error) {
+      // Reverter mudança se der erro
       updated[idx] = { ...updated[idx], likes: updated[idx].likes - 1 };
       setCompanions([...updated].sort((a, b) => b.likes - a.likes));
       console.error("Erro ao dar like:", error);
@@ -133,94 +128,108 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
 
   async function fetchData() {
     try {
-      // 🔎 Somente perfis com imagem (sem apagar nada no CMS)
-      const url = new URL(`https://leprive.com.pl/api/companions`);
-      url.searchParams.set("locale", language);
-      url.searchParams.set("sort", "likes:desc");
-      url.searchParams.set("pagination[page]", "1");
-      url.searchParams.set("pagination[pageSize]", "99");
-      url.searchParams.set("populate", "image");
-      url.searchParams.set("filters[image][id][$notNull]", "true");
+      const json = await companionsApi.getCompanions({
+        locale: language,
+        sort: "likes:desc",
+        withImage: true,
+      });
 
-      const res = await fetch(url.toString());
-      const json = await res.json();
       const companionsBase = (json?.data || []) as ApiCompanion[];
 
-      const companionsWithStatus: Companion[] = await Promise.all(
-        companionsBase.map(async (c) => {
-          const tags = (c.specialty || []).map((t) => t.label);
-          const description = c.description || "";
+      // ✅ OTIMIZAÇÃO: Carregar companions primeiro, availability depois
+      const companionsWithStatus: Companion[] = companionsBase.map((c) => {
+        const tags = (c.specialty || []).map((t) => t.label);
+        const description = c.description || "";
 
-          let availability: "Available" | "Busy" | "Unavailable" = "Unavailable";
-          if (c.event_type_id && String(c.event_type_id).match(/^\d+$/)) {
-            try {
-              const slotsRes = await fetch(
-                `https://leprive.com.pl/api/companions/event-type/${c.event_type_id}/availability`
-              );
-              if (slotsRes.ok) {
-                const slotsJson = await slotsRes.json();
-                availability = getCompanionStatus(slotsJson.availability_slots);
-              }
-            } catch {
-              availability = "Unavailable";
-            }
+        // ✅ Começar com "Checking..." e atualizar depois
+        const availability: "Available" | "Busy" | "Unavailable" | "Checking..." = "Checking...";
+
+        // ---- IMAGEM: pega a primeira mídia e monta URL absoluta
+        const raw = c.image;
+        let imageUrl = "";
+
+        if (Array.isArray(raw) && raw.length > 0) {
+          const first = raw[0];
+          const candidate =
+            first?.formats?.medium?.url ||
+            first?.formats?.small?.url ||
+            first?.url;
+          if (candidate) {
+            imageUrl = candidate.startsWith("http")
+              ? candidate
+              : `${API_URL}${candidate}`;
           }
-
-          // ---- IMAGEM: pega a primeira mídia e monta URL absoluta
-          const raw = c.image;
-          let imageUrl = "";
-
-          if (Array.isArray(raw) && raw.length > 0) {
-            const first = raw[0];
-            const candidate =
-              first?.formats?.medium?.url ||
-              first?.formats?.small?.url ||
-              first?.url;
-            if (candidate) {
-              imageUrl = candidate.startsWith("http")
-                ? candidate
-                : `${API_URL}${candidate}`;
-            }
-          } else if (raw?.data) {
-            // caso o Strapi devolva como { data: [...] }
-            const arr = Array.isArray(raw.data) ? raw.data : [raw.data];
-            const first = arr[0]?.attributes;
-            const candidate =
-              first?.formats?.medium?.url ||
-              first?.formats?.small?.url ||
-              first?.url;
-            if (candidate) {
-              imageUrl = candidate.startsWith("http")
-                ? candidate
-                : `${API_URL}${candidate}`;
-            }
+        } else if (raw?.data) {
+          // caso o Strapi devolva como { data: [...] }
+          const arr = Array.isArray(raw.data) ? raw.data : [raw.data];
+          const first = arr[0]?.attributes;
+          const candidate =
+            first?.formats?.medium?.url ||
+            first?.formats?.small?.url ||
+            first?.url;
+          if (candidate) {
+            imageUrl = candidate.startsWith("http")
+              ? candidate
+              : `${API_URL}${candidate}`;
           }
+        }
 
-          return {
-            id: c.id,
-            documentId: c.documentId,
-            name: c.name,
-            age:
-              typeof c.age === "string"
-                ? c.age.replace(/\D/g, "")
-                : typeof c.age === "number"
-                  ? String(c.age)
-                  : "",
-            location: c.location,
-            rating: c.rating ?? 0,
-            reviews: c.reviews ?? 0,
-            price: `zł ${c.price}/H`,
-            tags: tags.slice(0, 3),
-            availability,
-            description,
-            image: imageUrl,
-            likes: c.likes ?? 0,
-          };
-        })
-      );
+        return {
+          id: c.id,
+          documentId: c.documentId,
+          name: c.name,
+          age:
+            typeof c.age === "string"
+              ? c.age.replace(/\D/g, "")
+              : typeof c.age === "number"
+                ? String(c.age)
+                : "",
+          location: c.location,
+          rating: c.rating ?? 0,
+          reviews: c.reviews ?? 0,
+          price: `zł ${c.price}/H`,
+          tags: tags.slice(0, 3),
+          availability,
+          description,
+          image: imageUrl,
+          likes: c.likes ?? 0,
+        };
+      });
 
-      // 🧯 Failsafe no client: mantém somente quem realmente tem URL de imagem
-      setCompanions(companionsWithStatus.filter((c) => !!c.image));
+      // ✅ Filtrar companions com imagens e mostrar imediatamente
+      const validCompanions = companionsWithStatus.filter((c) => !!c.image);
+      setCompanions(validCompanions);
+
+      // ✅ OTIMIZAÇÃO: Carregar availability em background (sem bloquear UI)
+      validCompanions.forEach(async (companion, index) => {
+        if (companion.id && String(companionsBase[index]?.event_type_id).match(/^\d+$/)) {
+          try {
+            const slotsJson = await companionsApi.getCompanionAvailability(companionsBase[index].event_type_id!);
+            const newAvailability = getCompanionStatus(slotsJson.availability_slots);
+            
+            // ✅ Atualizar apenas este companion específico
+            setCompanions(prev => prev.map(c => 
+              c.documentId === companion.documentId 
+                ? { ...c, availability: newAvailability }
+                : c
+            ));
+          } catch {
+            // ✅ Se der erro, marcar como Unavailable
+            setCompanions(prev => prev.map(c => 
+              c.documentId === companion.documentId 
+                ? { ...c, availability: "Unavailable" as const }
+                : c
+            ));
+          }
+        } else {
+          // ✅ Se não tem event_type_id válido, marcar como Unavailable
+          setCompanions(prev => prev.map(c => 
+            c.documentId === companion.documentId 
+              ? { ...c, availability: "Unavailable" as const }
+              : c
+          ));
+        }
+      });
     } catch (error) {
       console.error("Failed to load companions:", error);
     }
@@ -228,11 +237,7 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
 
   async function fetchGalleryContent() {
     try {
-      const res = await fetch(
-        `https://leprive.com.pl/api/companions-gallery-content?locale=${language}`
-      );
-      const json = await res.json();
-      const data = json.data;
+      const data = await contentApi.getCompanionsGalleryContent(language);
       if (data) {
         // Fallback coerente caso o CMS não traga explicitamente "Ocultar"
         const derivedHide =
@@ -309,14 +314,16 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
                 <div className="relative h-80 overflow-hidden">
                   {companion.image ? (
                     <>
-                      <img
+                      <Image
                         src={companion.image}
                         alt={companion.name}
-                        className={`absolute inset-0 w-full h-full object-cover transition-transform duration-500 ${hoveredCard === companion.documentId
+                        fill
+                        className={`object-cover transition-transform duration-500 ${
+                          hoveredCard === companion.documentId
                             ? "scale-110"
                             : "scale-100"
-                          }`}
-                        loading="lazy"
+                        }`}
+                        unoptimized
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                     </>
@@ -339,10 +346,13 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
 
                   <div className="absolute top-4 left-4">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${companion.availability === "Available"
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        companion.availability === "Available"
                           ? "bg-green-500/20 text-green-300 border border-green-500/30"
+                          : companion.availability === "Checking..."
+                          ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 animate-pulse"
                           : "bg-red-500/20 text-red-300 border border-red-500/30"
-                        } backdrop-blur-sm`}
+                      } backdrop-blur-sm`}
                     >
                       {companion.availability}
                     </span>
