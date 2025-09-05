@@ -47,42 +47,93 @@ interface CompanionInfo {
   data_cal_namespace?: string;
 }
 
-async function fetchCompanionInfoByDocumentId(documentId: string, language: "pl" | "en") {
+/**
+ * Normaliza uma URL de mídia vinda do Strapi:
+ * - se começar com http/https retorna como está
+ * - senão prefixa com API_URL
+ */
+function normalizeMediaUrl(u?: string): string | null {
+  if (!u) return null;
+  return /^https?:\/\//i.test(u) ? u : `${API_URL}${u}`;
+}
+
+/**
+ * Extrai URLs de mídias de um valor que pode ser:
+ * - array de mídias
+ * - objeto de mídia única
+ * Retorna sempre um array de strings com URLs normalizadas.
+ */
+function extractMediaUrls(value: any): string[] {
+  if (!value) return [];
+  const toUrl = (m: any) =>
+    normalizeMediaUrl(
+      m?.url ||
+      m?.formats?.large?.url ||
+      m?.formats?.medium?.url ||
+      m?.formats?.small?.url ||
+      m?.formats?.thumbnail?.url
+    );
+
+  if (Array.isArray(value)) {
+    return value.map(toUrl).filter(Boolean) as string[];
+  }
+  const single = toUrl(value);
+  return single ? [single] : [];
+}
+
+/**
+ * Busca 1 companion por documentId e locale.
+ * (Mantemos seu endpoint /api/companions sem alterações conceituais.)
+ */
+async function fetchCompanionInfoByDocumentId(
+  documentId: string,
+  language: "pl" | "en"
+) {
   const url = new URL(`${API_URL}/api/companions`);
   url.searchParams.set("filters[documentId][$eq]", documentId);
   url.searchParams.set("locale", language);
-  url.searchParams.set("populate", "image");  // obter campo de mídia populado
+  url.searchParams.set("populate", "*"); // mantemos para garantir campos relacionados
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) throw new Error("Erro ao buscar dados da companion");
   const json = await res.json();
 
-  // Verifica se veio algum resultado
   if (!json.data || json.data.length === 0) return null;
-  const companion = json.data[0];  // pega o primeiro (deveria ser único pelo documentId)
+  const companion = json.data[0];
 
-  // Monta array de URLs absolutas das fotos
-  let photos: string[] = [];
-  if (companion.image) {
-    if (Array.isArray(companion.image)) {
-      photos = companion.image.map((img: any) => {
-        const imgUrl: string = img.url || img?.formats?.url || "";
-        // Usa URL completa se já estiver, caso contrário prefixa com API_URL
-        return imgUrl.startsWith("http") ? imgUrl : `${API_URL}${imgUrl}`;
-      });
-    } else if (companion.image.url) {
-      // Se `image` não for array (campo single) – não é o caso deste campo, mas por segurança
-      const imgUrl: string = companion.image.url;
-      photos = [imgUrl.startsWith("http") ? imgUrl : `${API_URL}${imgUrl}`];
-    }
-  }
-
+  // NÃO montamos mais photos aqui. A galeria virá do endpoint companion-infos.
   return {
-    ...companion,   // inclui todos os demais campos (id, documentId, name, etc.)
-    photos          // adiciona o array de URLs das fotos
+    ...companion,
   };
 }
 
+/**
+ * NOVO: Busca a galeria (array de imagens) no endpoint /api/companion-infos
+ * usando nome + locale, exatamente no formato que funcionou no Postman.
+ */
+async function fetchGalleryByName(name: string, language: "pl" | "en") {
+  const url = new URL(`${API_URL}/api/companion-infos`);
+  url.searchParams.set("locale", language);
+  // publicação ao vivo
+  url.searchParams.set("publicationState", "live");
+  // filtra por nome correspondente e garante que gallery não seja nulo
+  url.searchParams.set("filters[name][$eq]", name);
+  url.searchParams.set("filters[gallery][$notNull]", "true");
+  // popula somente os campos necessários da galeria (boa prática Strapi v5)
+  url.searchParams.set("populate[gallery][fields][0]", "url");
+  url.searchParams.set("populate[gallery][fields][1]", "formats");
+  url.searchParams.set("populate[gallery][fields][2]", "alternativeText");
+  url.searchParams.set("pagination[limit]", "100");
+
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  if (!res.ok) throw new Error("Erro ao buscar galeria");
+
+  const json = await res.json();
+  const item = json?.data?.[0];
+  const gallery = item?.gallery ?? [];
+  const photos = extractMediaUrls(gallery);
+  return photos;
+}
 
 export default function CompanionProfile() {
   const router = useRouter();
@@ -94,24 +145,34 @@ export default function CompanionProfile() {
   const [companion, setCompanion] = useState<CompanionInfo | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isCardExpanded, setIsCardExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  console.log("", isAuthenticated);
   useEffect(() => {
     if (!documentId || !locale) return;
     fetchCompanionInfoByDocumentId(documentId, locale)
-      .then((data) => {
-        if (!data) {
-          throw new Error("Companion not found");
-        }
+      .then(async (data) => {
+        if (!data) throw new Error("Companion not found");
+
+        // 1) seta os dados textuais
+        const about = (data as any).description || "";
         setCompanion({
-          ...data,
-          about: data.description || "",
+          ...(data as any),
+          about,
+          photos: [], // começa vazio; vamos preencher com a galeria do outro endpoint
         });
+
+        // 2) busca a galeria pelo NOME + locale no /api/companion-infos
+        const name = (data as any)?.name;
+        if (name) {
+          const photos = await fetchGalleryByName(name, locale);
+          setCurrentImageIndex(0);
+          setCompanion((prev) =>
+            prev ? { ...prev, photos: photos ?? [] } : prev
+          );
+        }
       })
       .catch(() => {
         alert("Error loading companion data");
@@ -120,9 +181,8 @@ export default function CompanionProfile() {
   }, [documentId, router, locale]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    setIsAuthenticated(!!token);
-  }, [isAuthOpen]);
+    setCurrentImageIndex(0);
+  }, [companion?.photos?.length]);
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -147,8 +207,6 @@ export default function CompanionProfile() {
 
   const handleAuthModalClose = () => {
     setIsAuthOpen(false);
-    const token = localStorage.getItem("token");
-    setIsAuthenticated(!!token);
   };
 
   if (!companion) {
@@ -162,8 +220,22 @@ export default function CompanionProfile() {
   const defaultBookingEmail = "noreplyseuprojeto@gmail.com";
 
   const calIframeUrl = companion.data_cal_link
-    ? `https://${companion.data_cal_link}/${companion.data_cal_namespace}?name=${encodeURIComponent(defaultBookingName)}&email=${encodeURIComponent(defaultBookingEmail)}`
+    ? `https://${companion.data_cal_link}/${companion.data_cal_namespace}?name=${encodeURIComponent(
+      defaultBookingName
+    )}&email=${encodeURIComponent(defaultBookingEmail)}`
     : null;
+
+  const totalPhotos = companion.photos?.length ?? 0;
+  const canNavigate = totalPhotos > 1;
+
+  const goPrev = () => {
+    if (!canNavigate) return;
+    setCurrentImageIndex((prev) => (prev - 1 + totalPhotos) % totalPhotos);
+  };
+  const goNext = () => {
+    if (!canNavigate) return;
+    setCurrentImageIndex((prev) => (prev + 1) % totalPhotos);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
@@ -195,12 +267,15 @@ export default function CompanionProfile() {
             >
               <div className="relative h-64 md:h-96 lg:h-[500px]">
                 <div className="absolute inset-0 bg-gradient-to-br from-rose-900/30 to-pink-900/30 flex items-center justify-center">
-                  {companion.photos && companion.photos.length > 0 ? (
+                  {totalPhotos > 0 ? (
                     <Image
-                      src={companion.photos[currentImageIndex]}
+                      key={companion.photos![currentImageIndex]} // força re-render quando troca o src
+                      src={companion.photos![currentImageIndex]}
                       alt={companion.name}
                       fill
                       className="object-cover"
+                      sizes="(max-width: 1024px) 100vw, 66vw"
+                      priority
                     />
                   ) : (
                     <Camera className="w-12 h-12 md:w-16 md:h-16 text-white/50" />
@@ -209,45 +284,50 @@ export default function CompanionProfile() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() =>
-                    setCurrentImageIndex(
-                      (prev) =>
-                        (prev - 1 + (companion.photos?.length || 1)) %
-                        (companion.photos?.length || 1)
-                    )
-                  }
-                  className="absolute left-2 md:left-4 top-1/2 transform -translate-y-1/2 p-2 md:p-3 bg-black/50 backdrop-blur-sm rounded-full border border-white/20 hover:bg-black/70 transition-all"
+                  whileHover={{ scale: canNavigate ? 1.1 : 1 }}
+                  whileTap={{ scale: canNavigate ? 0.9 : 1 }}
+                  onClick={goPrev}
+                  disabled={!canNavigate}
+                  className={`absolute left-2 md:left-4 top-1/2 transform -translate-y-1/2 p-2 md:p-3 rounded-full border transition-all
+                    ${canNavigate
+                      ? "bg-black/50 border-white/20 hover:bg-black/70"
+                      : "bg-black/30 border-white/10 opacity-50 cursor-not-allowed"
+                    }
+                  `}
                 >
                   <ChevronLeft className="w-4 h-4 md:w-6 md:h-6 text-white" />
                 </motion.button>
 
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() =>
-                    setCurrentImageIndex(
-                      (prev) => (prev + 1) % (companion.photos?.length || 1)
-                    )
-                  }
-                  className="absolute right-2 md:right-4 top-1/2 transform -translate-y-1/2 p-2 md:p-3 bg-black/50 backdrop-blur-sm rounded-full border border-white/20 hover:bg-black/70 transition-all"
+                  whileHover={{ scale: canNavigate ? 1.1 : 1 }}
+                  whileTap={{ scale: canNavigate ? 0.9 : 1 }}
+                  onClick={goNext}
+                  disabled={!canNavigate}
+                  className={`absolute right-2 md:right-4 top-1/2 transform -translate-y-1/2 p-2 md:p-3 rounded-full border transition-all
+                    ${canNavigate
+                      ? "bg-black/50 border-white/20 hover:bg-black/70"
+                      : "bg-black/30 border-white/10 opacity-50 cursor-not-allowed"
+                    }
+                  `}
                 >
                   <ChevronRight className="w-4 h-4 md:w-6 md:h-6 text-white" />
                 </motion.button>
 
-                <div className="absolute bottom-3 md:bottom-4 left-1/2 transform -translate-x-1/2 flex gap-1.5 md:gap-2">
-                  {(companion.photos || []).map((_: unknown, index: number) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentImageIndex(index)}
-                      className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full transition-all ${index === currentImageIndex
-                        ? "bg-white"
-                        : "bg-white/50 hover:bg-white/70"
-                        }`}
-                    />
-                  ))}
-                </div>
+                {totalPhotos > 1 && (
+                  <div className="absolute bottom-3 md:bottom-4 left-1/2 transform -translate-x-1/2 flex gap-1.5 md:gap-2">
+                    {companion.photos!.map((_, index: number) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentImageIndex(index)}
+                        className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full transition-all ${index === currentImageIndex
+                            ? "bg-white"
+                            : "bg-white/50 hover:bg-white/70"
+                          }`}
+                        aria-label={`Go to image ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 <div className="absolute top-3 md:top-4 right-3 md:right-4 flex gap-2">
                   <motion.button
