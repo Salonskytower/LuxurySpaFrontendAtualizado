@@ -3,26 +3,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff, Lock, Mail, X } from "lucide-react";
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { useRouter } from "next/navigation";
-
-// Interface para o usuário
-interface UserData {
-  id: number;
-  username: string;
-  email: string;
-  provider: string;
-  confirmed: boolean;
-  blocked: boolean;
-  createdAt: string;
-  updatedAt: string;
-  userType?: string; // Added to support admin check
-  role?: {
-    id: number;
-    name: string;
-    description?: string;
-  };
-}
+import { authApi, textsApi } from "@/lib/api";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -83,10 +65,7 @@ export default function AuthModal({
   useEffect(() => {
     const fetchLoginContent = async () => {
       try {
-        const res = await axios.get<{ data: LoginContent }>(
-          `https://leprive.com.pl/api/login-content?locale=${language}`
-        );
-        const data = res.data?.data;
+        const data = await textsApi.getLoginContent(language);
         if (data) setLoginContent(data);
       } catch (error) {
         console.error("Erro ao buscar dados de login-content:", error);
@@ -98,10 +77,7 @@ export default function AuthModal({
   useEffect(() => {
     const fetchResetContent = async () => {
       try {
-        const res = await axios.get<{ data: ResetPasswordContent }>(
-          `https://leprive.com.pl/api/reset-password-content?locale=${language}`
-        );
-        const data = res.data?.data;
+        const data = await textsApi.getResetPasswordContent(language);
         if (data) setResetContent(data);
       } catch (error) {
         console.error("Erro ao buscar dados de reset-password-content:", error);
@@ -126,23 +102,10 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const payload = {
-        identifier: formData.email,
-        password: formData.password,
-      };
+      const res = await authApi.login(formData.email, formData.password);
 
-      interface LoginResponse {
-        jwt: string;
-        user: UserData;
-      }
-
-      const res = await axios.post<LoginResponse>(
-        "https://leprive.com.pl/api/auth/local",
-        payload
-      );
-
-      localStorage.setItem("user", JSON.stringify(res.data.user));
-      localStorage.setItem("jwt", res.data.jwt);
+      localStorage.setItem("user", JSON.stringify(res.user));
+      localStorage.setItem("jwt", res.jwt);
 
       if (typeof onLoginSuccess === "function") {
         onLoginSuccess();
@@ -151,23 +114,17 @@ export default function AuthModal({
         onUserUpdate();
       }
 
-      if (res.data.user.userType === "admin") {
+      if (res.user.userType === "admin") {
         router.push("/admin");
       }
 
       onClose?.();
     } catch (err: unknown) {
-      const error = err as {
-        response?: { data?: { error?: { message?: string } } };
-      };
-      if (
-        error.response?.data?.error?.message
-          ?.toLowerCase()
-          .includes("not confirmed")
-      ) {
+      const error = err as Error;
+      if (error.message?.toLowerCase().includes("not confirmed")) {
         setError("Por favor, confirme seu e-mail antes de fazer login.");
       } else {
-        setError(error.response?.data?.error?.message || "Login failed");
+        setError(error.message || "Login failed");
       }
     }
     setLoading(false);
@@ -178,22 +135,12 @@ export default function AuthModal({
     setError(null);
     setLoading(true);
     try {
-      const payload = {
-        email: formData.email,
-      };
-      await axios.post(
-        "https://leprive.com.pl/api/auth/forgot-password",
-        payload
-      );
+      await authApi.forgotPassword(formData.email);
       alert("If this email exists, a reset link has been sent.");
       switchMode("login");
     } catch (err: unknown) {
-      const error = err as {
-        response?: { data?: { error?: { message?: string } } };
-      };
-      setError(
-        error.response?.data?.error?.message || "Failed to send reset email"
-      );
+      const error = err as Error;
+      setError(error.message || "Failed to send reset email");
     }
     setLoading(false);
   };
