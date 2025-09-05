@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Menu, Phone, User, X, LogOut } from "lucide-react";
-import { fetchFromStrapi } from "../lib/api";
+import { contentApi } from "../lib/api";
 import Image from "next/image";
 
 interface NavItem {
@@ -104,14 +104,16 @@ export default function Header({
 
   useEffect(() => {
     async function loadHeaderData() {
-      const res = await fetchFromStrapi(
-        `/api/header-content?populate=*&locale=${language}`
-      );
-      if (res) {
-        setNavItems(res.navItems || []);
-        setCallNowText(res.callNowButtonText || "Call Now");
-        setLoginText(res.loginButtonText || "Login");
-        setOutText(res.out || "Logout");
+      try {
+        const res = await contentApi.getHeaderContent(language);
+        if (res) {
+          setNavItems(res.navItems || []);
+          setCallNowText(res.callNowButtonText || "Call Now");
+          setLoginText(res.loginButtonText || "Login");
+          setOutText(res.out || "Logout");
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados do header:", error);
       }
     }
     loadHeaderData();
