@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useEffect } from "react";
+import { contentApi } from "@/lib/api";
 
 interface WhyChooseUsSectionProps {
   language: "pl" | "en";
@@ -36,12 +37,9 @@ export default function HowItWorksSection({
   const [button, setButton] = useState({ text: "", icon: "" });
 
   useEffect(() => {
-    fetch(
-      `https://leprive.com.pl/api/why-choose-content?populate[cards]=true&populate[bottomButton]=true&locale=${language}`
-    )
-      .then((res) => res.json())
-      .then((json) => {
-        const data = json.data;
+    async function loadWhyChooseContent() {
+      try {
+        const data = await contentApi.getWhyChooseContent(language);
         if (!data) return;
 
         setSectionTitle(data.sectionTitle || "");
@@ -98,17 +96,18 @@ export default function HowItWorksSection({
             icon: data.bottomButton.icon || "",
           });
         }
-      })
-      .catch((err) => console.error("Erro ao carregar seção:", err));
+      } catch (err) {
+        console.error("Erro ao carregar seção:", err);
+      }
+    }
+    
+    loadWhyChooseContent();
   }, [language]);
 
   useEffect(() => {
-    fetch(
-      `https://leprive.com.pl/api/why-choose-section?populate[bottomCards]=true&locale=${language}`
-    )
-      .then((res) => res.json())
-      .then((json) => {
-        const data = json?.data;
+    async function loadWhyChooseSection() {
+      try {
+        const data = await contentApi.getWhyChooseSection(language);
         if (!data) return;
 
         setBottomSectionTitle(data.sectionTitle || "");
@@ -119,8 +118,12 @@ export default function HowItWorksSection({
         if (Array.isArray(data.bottomCards)) {
           setBottomCards(data.bottomCards);
         }
-      })
-      .catch((err) => console.error("Erro ao carregar seção inferior:", err));
+      } catch (err) {
+        console.error("Erro ao carregar seção inferior:", err);
+      }
+    }
+    
+    loadWhyChooseSection();
   }, [language]);
 
   return (
