@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import { Heart, Star, MapPin, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { companionsApi, contentApi } from "@/lib/api";
+import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://leprive.com.pl";
 
@@ -55,7 +55,6 @@ interface GalleryContent {
 }
 
 export default function CompanionsGallery({ language }: CompanionsGalleryProps) {
-  const router = useRouter();
   const [companions, setCompanions] = useState<Companion[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
@@ -271,11 +270,6 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
     galleryContent.viewAllButtonText,
   ]);
 
-  // AJUSTE: agora qualquer usuário pode acessar o perfil sem login
-  const navigateToCompanion = (documentId: string) => {
-    router.push(`/companion/${language}/${documentId}`);
-  };
-
   const companionsToDisplay = isExpanded ? companions : companions.slice(0, 3);
 
   return (
@@ -307,9 +301,9 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
               onHoverEnd={() => setHoveredCard(null)}
               className="group relative"
             >
-              <div
+              <Link
+                href={`/companion/${language}/${companion.documentId}`}
                 className="relative bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-rose-500/50 transition-all duration-500 cursor-pointer h-full flex flex-col"
-                onClick={() => navigateToCompanion(companion.documentId)}
               >
                 <div className="relative h-80 overflow-hidden">
                   {companion.image ? (
@@ -414,20 +408,15 @@ export default function CompanionsGallery({ language }: CompanionsGalleryProps) 
                         {tag}
                       </span>
                     ))}
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigateToCompanion(companion.documentId);
-                    }}
-                    className="w-full bg-gradient-to-r from-rose-500 to-pink-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300 mt-auto"
+                    </div>
+                    <Link
+                    href={`/companion/${language}/${companion.documentId}`}
+                    className="w-full text-center bg-gradient-to-r from-rose-500 to-pink-600 text-white py-3 rounded-xl font-medium hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300 mt-auto"
                   >
                     {galleryContent.bookNowButtonText || "Book Now"}
-                  </motion.button>
+                  </Link>
                 </div>
-              </div>
+              </Link>
             </motion.div>
           ))}
         </div>
