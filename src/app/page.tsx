@@ -6,7 +6,6 @@ import ServicesSection from "@/components/ServicesSection";
 import WhyChooseUsSection from "@/components/HowItWorks";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import ImageCarouselSection from "@/components/ImageCarousel";
 import AuthModal from "@/components/AuthModal";
 
 export default function Home() {
@@ -33,9 +32,6 @@ export default function Home() {
         </div>
         <div id="services">
           <ServicesSection language={language} />
-        </div>
-        <div id="image-carousel">
-          <ImageCarouselSection language={language} />
         </div>
         <div id="how-it-works">
           <WhyChooseUsSection language={language} />
