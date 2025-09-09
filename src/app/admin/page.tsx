@@ -208,14 +208,8 @@ export default function AdminDashboard() {
 
   // Função para refazer o fetch dos bookings
   const fetchBookings = async () => {
-    const url = `${API_URL}/api/bookings?populate=companion`;
-    const res = await fetch(url, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    });
+    const url = `${API_URL}/api/bookings?populate=companion&_t=${Date.now()}`;
+    const res = await fetch(url);
     const data = await res.json();
     if (data.data) {
       const processed = data.data.map((item: any) => {
