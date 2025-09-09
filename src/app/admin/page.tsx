@@ -102,90 +102,6 @@ export default function AdminDashboard() {
   const [todayBookings, setTodayBookings] = useState(0);
 
   useEffect(() => {
-    async function fetchBookings() {
-      const url = `${API_URL}/api/bookings?populate=companion`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.data) {
-        const processed = data.data.map((item: any) => {
-          const companionData = item.companion;
-
-          let clientName = "";
-          if (item.customerPhone && item.customerPhone.trim() !== "") {
-            clientName = item.customerPhone;
-          } else if (item.customerName && item.customerName.trim() !== "") {
-            clientName = item.customerName;
-          } else if (item.customerEmail && item.customerEmail.trim() !== "") {
-            clientName = item.customerEmail;
-          } else {
-            clientName = "Cliente";
-          }
-
-          const companionName = companionData?.name ?? "Companion";
-          const startTime = item.startTime ?? "";
-          const endTime = item.endTime ?? "";
-
-          const [date, time] = startTime ? startTime.split("T") : ["", ""];
-          const timeFmt = time ? time.slice(0, 5) : "";
-
-          const duration =
-            startTime && endTime
-              ? (() => {
-                const start = new Date(startTime);
-                const end = new Date(endTime);
-                const diff = Math.round(
-                  (end.getTime() - start.getTime()) / 60000
-                );
-                return diff > 0 ? `${diff}min` : "-";
-              })()
-              : "-";
-
-          const amount = companionData?.price
-            ? `R$ ${Number(companionData.price).toLocaleString("pt-BR")}`
-            : "-";
-
-          // === NORMALIZAÇÃO DE STATUS (alinhada ao enum do back) ===
-          let status = (item.currentStatus ?? "").toLowerCase();
-
-          if (["accepted", "accept", "approved"].includes(status)) {
-            status = "confirmed";
-          } else if (["cancelled", "canceled"].includes(status)) {
-            status = "cancelled";
-          } else if (!["pending", "confirmed", "cancelled"].includes(status)) {
-            status = "pending";
-          }
-          // ========================================================
-
-          return {
-            // guardamos ambos: o id numérico (v4/v5 legacy) e o documentId (v5)
-            id: item.id, // numérico (fallback)
-            documentId: item.documentId, // preferido no v5
-            clientName,
-            companionName,
-            date: date ?? "-",
-            time: timeFmt ?? "-",
-            duration,
-            amount,
-            status,
-            clientPhone: item.customerPhone ?? "-",
-            customerEmail: item.customerEmail ?? "-",
-            bookingId: item.bookingId ?? "-",
-          };
-        });
-
-        // Calcular bookings de hoje
-        const today = new Date();
-        const todayStr = today.toISOString().split("T")[0]; // YYYY-MM-DD
-        const todayCount = processed.filter((booking: any) => {
-          const bookingDate = booking.date; // já está no formato YYYY-MM-DD
-          return bookingDate === todayStr;
-        }).length;
-        setTodayBookings(todayCount);
-
-        setBookings(processed);
-        setCurrentPage(1);
-      }
-    }
     fetchBookings();
   }, []);
 
@@ -267,14 +183,8 @@ export default function AdminDashboard() {
 
       if (!res.ok) throw new Error("Erro ao atualizar status!");
 
-      // Atualização otimista local
-      setBookings((prev) =>
-        prev.map((b) =>
-          (b.documentId ?? b.id) === bookingIdentifier
-            ? { ...b, status: newStatus }
-            : b
-        )
-      );
+      // Em vez de atualização otimista, refazer o fetch para garantir sincronização
+      await fetchBookings();
 
       const statusMessages = {
         confirmed: panelTexts?.status_confirmed_notification || "Booking confirmed successfully!",
@@ -293,6 +203,106 @@ export default function AdminDashboard() {
         type: "error",
       });
       setTimeout(() => setNotification(null), 3000);
+    }
+  };
+
+  // Função para refazer o fetch dos bookings
+  const fetchBookings = async () => {
+    const url = `${API_URL}/api/bookings?populate=companion`;
+    const res = await fetch(url, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    const data = await res.json();
+    if (data.data) {
+      const processed = data.data.map((item: any) => {
+        const companionData = item.companion;
+
+        let clientName = "";
+        if (item.customerPhone && item.customerPhone.trim() !== "") {
+          clientName = item.customerPhone;
+        } else if (item.customerName && item.customerName.trim() !== "") {
+          clientName = item.customerName;
+        } else if (item.customerEmail && item.customerEmail.trim() !== "") {
+          clientName = item.customerEmail;
+        } else {
+          clientName = "Cliente";
+        }
+
+        const companionName = companionData?.name ?? "Companion";
+        const startTime = item.startTime ?? "";
+        const endTime = item.endTime ?? "";
+
+        const [date, time] = startTime ? startTime.split("T") : ["", ""];
+        const timeFmt = time ? time.slice(0, 5) : "";
+
+        const duration =
+          startTime && endTime
+            ? (() => {
+              const start = new Date(startTime);
+              const end = new Date(endTime);
+              const diff = Math.round(
+                (end.getTime() - start.getTime()) / 60000
+              );
+              return diff > 0 ? `${diff}min` : "-";
+            })()
+            : "-";
+
+        const amount = companionData?.price
+          ? `R$ ${Number(companionData.price).toLocaleString("pt-BR")}`
+          : "-";
+
+        // === NORMALIZAÇÃO DE STATUS (preservando null do Strapi) ===
+        let status = item.currentStatus;
+        
+        // Se não for null, normaliza o status
+        if (status !== null) {
+          status = status.toLowerCase();
+          
+          if (["accepted", "accept", "approved"].includes(status)) {
+            status = "confirmed";
+          } else if (["cancelled", "canceled"].includes(status)) {
+            status = "cancelled";
+          } else if (!["pending", "confirmed", "cancelled"].includes(status)) {
+            status = "pending";
+          }
+        } else {
+          // Se for null no Strapi, mantém como "pending" apenas para exibição
+          status = "pending";
+        }
+        // ========================================================
+
+        return {
+          // guardamos ambos: o id numérico (v4/v5 legacy) e o documentId (v5)
+          id: item.id, // numérico (fallback)
+          documentId: item.documentId, // preferido no v5
+          clientName,
+          companionName,
+          date: date ?? "-",
+          time: timeFmt ?? "-",
+          duration,
+          amount,
+          status,
+          clientPhone: item.customerPhone ?? "-",
+          customerEmail: item.customerEmail ?? "-",
+          bookingId: item.bookingId ?? "-",
+        };
+      });
+
+      // Calcular bookings de hoje
+      const today = new Date();
+      const todayStr = today.toISOString().split("T")[0]; // YYYY-MM-DD
+      const todayCount = processed.filter((booking: any) => {
+        const bookingDate = booking.date; // já está no formato YYYY-MM-DD
+        return bookingDate === todayStr;
+      }).length;
+      setTodayBookings(todayCount);
+
+      setBookings(processed);
+      setCurrentPage(1);
     }
   };
 
@@ -473,14 +483,13 @@ export default function AdminDashboard() {
           )}
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-6">
-            {stats.map((stat, index) => {
+            {stats.map((stat) => {
               const IconComponent = stat.icon;
               return (
                 <motion.div
                   key={stat.title}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
                   className="bg-white/[0.03] backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/10 hover:border-white/20 hover:bg-white/[0.06] transition-all duration-300 shadow-xl shadow-black/20"
                 >
                   <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -962,4 +971,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-
