@@ -25,8 +25,8 @@ interface CompanionInfo {
   location: string;
   age: string;
   rating: number;
-  reviews: number;
-  about: string;
+  reviews: number | null;
+  about: any; // Mudou para any pois vem como array de objetos estruturados
   price: number;
   photos?: string[];
   tags?: string[];
@@ -41,6 +41,34 @@ interface CompanionInfo {
   statusInfo?: string;
   backgallery?: string;
   data_cal_namespace?: string;
+  phoneNumber?: string; // Novo campo da API
+  language?: Array<{ id: number; label: string }>; // Novo campo da API
+  service?: Array<{ id: number; label: string }>; // Novo campo da API
+  contactLinks?: Array<{ // Novo campo da API
+    id: number;
+    whatsapp: string;
+    callNow: string;
+    telegram: string;
+  }>;
+}
+
+/**
+ * Converte o campo about (array estruturado) em texto simples
+ */
+function convertAboutToText(aboutArray: any): string {
+  if (!aboutArray || !Array.isArray(aboutArray)) return "";
+  
+  return aboutArray
+    .map((paragraph: any) => {
+      if (paragraph.children && Array.isArray(paragraph.children)) {
+        return paragraph.children
+          .map((child: any) => child.text || "")
+          .join("");
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /**
@@ -104,31 +132,35 @@ async function fetchCompanionInfoByDocumentId(
 }
 
 /**
- * NOVO: Busca a galeria (array de imagens) no endpoint /api/companion-infos
- * usando nome + locale, exatamente no formato que funcionou no Postman.
+ * NOVO: Busca todos os dados da companion no endpoint /api/companion-infos
+ * usando nome + locale, incluindo galeria e todos os textos.
  */
-async function fetchGalleryByName(name: string, language: "pl" | "en") {
+async function fetchCompanionInfosByName(name: string, language: "pl" | "en") {
   const url = new URL(`${API_URL}/api/companion-infos`);
   url.searchParams.set("locale", language);
   // publicação ao vivo
   url.searchParams.set("publicationState", "live");
-  // filtra por nome correspondente e garante que gallery não seja nulo
+  // filtra por nome correspondente
   url.searchParams.set("filters[name][$eq]", name);
-  url.searchParams.set("filters[gallery][$notNull]", "true");
-  // popula somente os campos necessários da galeria (boa prática Strapi v5)
-  url.searchParams.set("populate[gallery][fields][0]", "url");
-  url.searchParams.set("populate[gallery][fields][1]", "formats");
-  url.searchParams.set("populate[gallery][fields][2]", "alternativeText");
+  // popula todos os campos necessários
+  url.searchParams.set("populate", "*");
   url.searchParams.set("pagination[limit]", "100");
 
   const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) throw new Error("Erro ao buscar galeria");
+  if (!res.ok) throw new Error("Erro ao buscar dados da companion-info");
 
   const json = await res.json();
   const item = json?.data?.[0];
+  
+  if (!item) return { photos: [], companionInfo: null };
+  
   const gallery = item?.gallery ?? [];
   const photos = extractMediaUrls(gallery);
-  return photos;
+  
+  return { 
+    photos, 
+    companionInfo: item 
+  };
 }
 
 export default function CompanionProfile() {
@@ -149,22 +181,30 @@ export default function CompanionProfile() {
       .then(async (data) => {
         if (!data) throw new Error("Companion not found");
 
-        // 1) seta os dados textuais
-        const about = (data as any).description || "";
-        setCompanion({
-          ...(data as any),
-          about,
-          photos: [], // começa vazio; vamos preencher com a galeria do outro endpoint
-        });
-
-        // 2) busca a galeria pelo NOME + locale no /api/companion-infos
+        // 1) busca todos os dados da companion-info pelo NOME + locale
         const name = (data as any)?.name;
         if (name) {
-          const photos = await fetchGalleryByName(name, locale);
+          const { photos, companionInfo } = await fetchCompanionInfosByName(name, locale);
+          
+          // 2) combina os dados do /api/companions com os da /api/companion-infos
+          const combinedData = {
+            ...(data as any),
+            // Sobrescreve com dados da companion-info quando disponíveis
+            ...(companionInfo || {}),
+            about: companionInfo?.about ? convertAboutToText(companionInfo.about) : (data as any).description || "",
+            photos: photos ?? [],
+          };
+          
+          setCompanion(combinedData);
           setCurrentImageIndex(0);
-          setCompanion((prev) =>
-            prev ? { ...prev, photos: photos ?? [] } : prev
-          );
+        } else {
+          // Fallback se não tiver nome
+          const about = (data as any).description || "";
+          setCompanion({
+            ...(data as any),
+            about,
+            photos: [],
+          });
         }
       })
       .catch(() => {
@@ -337,17 +377,17 @@ export default function CompanionProfile() {
                   />
                 ))}
                 <span className="ml-2 text-slate-300">
-                  ({companion.reviews} recenzji)
+                  ({companion.reviews || 0} {locale === "pl" ? "recenzji" : "reviews"})
                 </span>
               </div>
 
               {/* Preço */}
               <div className="mb-8">
                 <div className="text-4xl font-bold text-rose-400 mb-1">
-                  {companion.price}
+                  {companion.price} PLN
                 </div>
                 <div className="text-slate-300">
-                  {companion.perhour || companion.perHourText || "/ na godzinę"}
+                  {companion.perHourText || (locale === "pl" ? "/ na godzinę" : "/ per hour")}
                 </div>
               </div>
 
@@ -360,7 +400,7 @@ export default function CompanionProfile() {
                   className="w-full bg-white/10 backdrop-blur-sm border-2 border-white/20 text-white py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 hover:bg-white/20 transition-all"
                 >
                   <Phone className="w-5 h-5" />
-                  Zadzwoń teraz: 48 665 564 549
+                  {companion.phoneNumber || (locale === "pl" ? "Zadzwoń teraz: 48 665 564 549" : "Call now: +48 665 564 549")}
                 </motion.button>
 
                 {/* Botão de reserva */}
@@ -371,8 +411,17 @@ export default function CompanionProfile() {
                   className="w-full bg-gradient-to-r from-rose-500 to-pink-600 text-white py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 hover:shadow-rose-500/25 transition-all shadow-lg"
                 >
                   <Calendar className="w-5 h-5" />
-                  Zarezerwuj online
+                  {companion.BookButton || (locale === "pl" ? "Zarezerwuj online" : "Book Now")}
                 </motion.button>
+                
+                {/* Texto de verificação */}
+                {companion.titleBellowButton && (
+                  <div className="text-center">
+                    <span className="text-sm text-slate-400">
+                      {companion.titleBellowButton}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -381,7 +430,7 @@ export default function CompanionProfile() {
           <div className="px-6 lg:px-8 pb-6 lg:pb-8 border-t border-white/10">
             <div className="pt-6">
               <p className="text-slate-300 leading-relaxed text-base">
-                {companion.about || `${companion.name} to ${companion.age}-letnia dziewczyna o smukłej sylwetce i naturalnym uroku.`}
+                {companion.about || ""}
               </p>
             </div>
 
@@ -395,6 +444,44 @@ export default function CompanionProfile() {
                       className="px-3 py-1 bg-rose-500/20 text-rose-300 rounded-full text-sm border border-rose-500/30"
                     >
                       {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Serviços se existirem */}
+            {companion.service && companion.service.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-white mb-3">
+                  {locale === "pl" ? "Usługi" : "Services"}
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {companion.service.map((service) => (
+                    <span
+                      key={service.id}
+                      className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm border border-blue-500/30"
+                    >
+                      {service.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Idiomas se existirem */}
+            {companion.language && companion.language.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-white mb-3">
+                  {locale === "pl" ? "Języki" : "Languages"}
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {companion.language.map((lang) => (
+                    <span
+                      key={lang.id}
+                      className="px-3 py-1 bg-green-500/20 text-green-300 rounded-full text-sm border border-green-500/30"
+                    >
+                      {lang.label}
                     </span>
                   ))}
                 </div>
@@ -423,7 +510,7 @@ export default function CompanionProfile() {
             >
               <div className="flex items-center justify-between p-6 border-b border-white/20">
                 <h2 className="text-xl font-bold text-white">
-                  {companion.name}
+                  {companion.BookAppointment || companion.name}
                 </h2>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
