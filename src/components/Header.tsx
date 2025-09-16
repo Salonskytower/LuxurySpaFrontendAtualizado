@@ -138,8 +138,8 @@ export default function Header({
   };
 
   const handleNavClick = (href: string, itemName?: string) => {
-    const cleanHref = href.trim();
-    const cleanItemName = itemName?.trim();
+    const cleanHref = href?.trim() || "";
+    const cleanItemName = itemName?.trim() || "";
 
     setIsOpen(false);
 
@@ -147,11 +147,11 @@ export default function Header({
       cleanHref === "#" ||
       cleanHref === "#hero" ||
       cleanHref === "/" ||
-      cleanItemName?.toLowerCase().includes("home") ||
-      cleanItemName?.toLowerCase().includes("início") ||
-      cleanItemName?.toLowerCase().includes("inicio") ||
-      cleanItemName?.toLowerCase().includes("strona główna") ||
-      cleanItemName?.toLowerCase().includes("strona glowna");
+      cleanItemName.toLowerCase().includes("home") ||
+      cleanItemName.toLowerCase().includes("início") ||
+      cleanItemName.toLowerCase().includes("inicio") ||
+      cleanItemName.toLowerCase().includes("strona główna") ||
+      cleanItemName.toLowerCase().includes("strona glowna");
 
     if (isHomeItem) {
       setTimeout(() => scrollToTop(), 100);
@@ -195,11 +195,11 @@ export default function Header({
           <nav className="hidden lg:flex items-center gap-8">
             {navItems.map((item, index) => (
               <motion.a
-                key={item.name}
-                href={item.href}
+                key={item?.name || index}
+                href={item?.href || "#"}
                 onClick={(e) => {
                   e.preventDefault();
-                  handleNavClick(item.href, item.name);
+                  handleNavClick(item?.href || "#", item?.name || "");
                 }}
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -207,7 +207,7 @@ export default function Header({
                 whileHover={{ y: -2 }}
                 className="text-white/80 hover:text-white font-medium transition-all duration-300 relative group cursor-pointer"
               >
-                {item.name}
+                {item?.name || "Menu Item"}
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-rose-400 to-pink-400 transition-all duration-300 group-hover:w-full" />
               </motion.a>
             ))}
@@ -315,8 +315,8 @@ export default function Header({
           <div className="py-6 space-y-4 border-t border-white/10">
             {navItems.map((item, index) => (
               <motion.button
-                key={item.name}
-                onClick={() => handleNavClick(item.href, item.name)}
+                key={item?.name || index}
+                onClick={() => handleNavClick(item?.href || "#", item?.name || "")}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: isOpen ? 1 : 0, x: isOpen ? 0 : -20 }}
                 transition={{
@@ -326,7 +326,7 @@ export default function Header({
                 }}
                 className="block text-white/80 hover:text-white font-medium py-3 px-4 transition-colors cursor-pointer w-full text-left bg-white/5 rounded-lg hover:bg-white/10"
               >
-                {item.name}
+                {item?.name || "Menu Item"}
               </motion.button>
             ))}
 
