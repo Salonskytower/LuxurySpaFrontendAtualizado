@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Le Privé - Luxury Spa",
+  title: "Le Privé - Men's Spa",
   description: "Experiência de luxo e bem-estar exclusiva",
   icons: {
     icon: '/favicon.ico',
@@ -38,3 +38,4 @@ export default function RootLayout({
     </html>
   );
 }
+
